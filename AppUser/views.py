@@ -1,14 +1,12 @@
-from datetime import timedelta
 from django.contrib.auth.hashers import check_password
+import requests
 from django.core.exceptions import ObjectDoesNotExist
-from django.shortcuts import render
-from django.utils import timezone
+from django.urls import reverse
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 from AppUser.models import ApplicationUser
 from AppUser.serializer import ApplicationUserSerializer
 from FlyTour.general_functions import error_message, success_message
@@ -86,68 +84,28 @@ class PublicUserViewSet(viewsets.ModelViewSet):
         try:
             # Step 2.3 extracting user details from DB if not then raise exception
             user = ApplicationUser.objects.get(username=request_data.get("username"))
-            # Step 2.1 checking if access token of a user is already set
-            if user.access_token_expiry:
-                time_delta = (user.access_token_expiry - timezone.now()).total_seconds() / 3600
-                # if access token is set we authenticate the user.
-                if check_password(request_data.get("password"), user.password):
-                    # After authentication, we verify that if token is expired - in case it is expired we generate
-                    # a new token and save it.
-                    if time_delta < 0:
-                        # Generate JWT tokens
-                        refresh = RefreshToken.for_user(user)
-                        access = AccessToken.for_user(user)
-                        # Set expiration time for access token (e.g., 1 hour)
-                        access_expiry = timezone.now() + timedelta(hours=6)
-                        # Update user tokens and access token expiry
-                        user.refresh_token = str(refresh)
-                        user.access_token = str(access)
-                        user.access_token_expiry = access_expiry
-                        user.save()
-                        response_status = status.HTTP_202_ACCEPTED
-                        response_dictionary = success_message("User Authenticated and new Token generated",
-                                                              data={'refresh': str(refresh), 'access': str(access),
-                                                                    'access_token_expiry': user.access_token_expiry,
-                                                                    })
-                        return Response(response_dictionary, status=response_status)
-                    else:
-                        response_status = status.HTTP_202_ACCEPTED
-                        response_dictionary = success_message("User Authenticated and new Token generated",
-                                                              data={'refresh': str(user.refresh_token),
-                                                                    'access': str(user.access_token),
-                                                                    'access_token_expiry': user.access_token_expiry,
-                                                                    })
-                        return Response(response_dictionary, status=response_status)
-                else:
-                    response_status = status.HTTP_401_UNAUTHORIZED
-                    response_dictionary = error_message('User not authenticated')
-                    return Response(response_dictionary, status=response_status)
+
+            # if access token is set we authenticate the user.
+            if check_password(request_data.get("password"), user.password):
+                # After authentication. Assuming 'token_obtain_pair' is the name of the URL pattern for
+                # obtaining a token pair
+                url = reverse('token_obtain_pair')
+                token_pair_url = "http://localhost:8000" + url
+                # Your POST data
+                data = {"username": user.username, "password": request_data.get("password")}
+                response = requests.post(token_pair_url, json=data)
+
+                response.raise_for_status()  # Raise an exception for HTTP errors
+
+                response_status = status.HTTP_202_ACCEPTED
+                response_dictionary = success_message("User Authenticated and new Token generated",
+                                                      data={'token': response.json()})
+                return Response(response_dictionary, status=response_status)
+
             else:
-                # This block will fire if user access token expiry is empty, so we add new tokens and expiry date and
-                # time.
-                if check_password(request_data.get("password"), user.password):
-                    # Generate JWT tokens
-                    refresh = RefreshToken.for_user(user)
-                    access = AccessToken.for_user(user)
-
-                    # Set expiration time for access token (e.g., 1 hour)
-                    access_expiry = timezone.now() + timedelta(hours=6)
-                    # Update user tokens and access token expiry
-                    user.refresh_token = str(refresh)
-                    user.access_token = str(access)
-                    user.access_token_expiry = access_expiry
-                    user.save()
-
-                    response_status = status.HTTP_202_ACCEPTED
-                    response_dictionary = success_message("User Authenticated and new Token generated",
-                                                          data={'refresh': str(refresh), 'access': str(access),
-                                                                'access_token_expiry': user.access_token_expiry,
-                                                                })
-                    return Response(response_dictionary, status=response_status)
-                else:
-                    response_status = status.HTTP_401_UNAUTHORIZED
-                    response_dictionary = error_message('User not authenticated')
-                    return Response(response_dictionary, status=response_status)
+                response_status = status.HTTP_401_UNAUTHORIZED
+                response_dictionary = error_message('User not authenticated')
+                return Response(response_dictionary, status=response_status)
         except ValueError as e:
             return Response({'error': 'User does not exist'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -169,7 +127,8 @@ class PublicUserViewSet(viewsets.ModelViewSet):
 
             return:  rest_framework.response object with status of OK of failure to requesting source for this API
         """
-        request_data = request.data
+        request_data = request.headers
+        # request_data_body = request.data
         # extracting the user from database with respect to username provided in request body.
         user = ApplicationUser.objects.get(username=request_data.get("username"))
         jwt_token = None
@@ -183,10 +142,6 @@ class PublicUserViewSet(viewsets.ModelViewSet):
         try:
             # If we have access token then we set all token and expiry field to none.
             if jwt_token:
-                user.refresh_token = None
-                user.access_token_expiry = None
-                user.access_token = None
-                user.save()
                 response_status = status.HTTP_200_OK
                 response_dictionary = success_message("Logout successful")
                 return Response(response_dictionary, status=response_status)

@@ -16,9 +16,6 @@ class ApplicationUser(AbstractUser):
         is_deleted: Boolean field - do not need to set, it has default value
     """
     # Add any additional fields you need for your user model
-    refresh_token = models.CharField(max_length=500, blank=True, null=True)
-    access_token = models.CharField(max_length=500, blank=True, null=True)
-    access_token_expiry = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(default=timezone.now)
     is_deleted = models.BooleanField(default=False)

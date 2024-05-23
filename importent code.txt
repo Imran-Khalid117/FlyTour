@@ -1,0 +1,65 @@
+  # Step 1: we are extracting "username" and "password" from request data
+        request_data = request.data
+        # Step 2: In this try catch block we are testing following things.
+        # 1) We will check if access token is set and if it expired then generate a new token
+        # 2) We will check if access token is not expired then return same access token, refresh token and expiry date.
+        # 3) We will also verify if user exists in database.
+
+        try:
+            # Step 2.3 extracting user details from DB if not then raise exception
+            user = ApplicationUser.objects.get(username=request_data.get("username"))
+            # Step 2.1 checking if access token of a user is already set
+            if user.access_token:
+                # if access token is set we authenticate the user.
+                if check_password(request_data.get("password"), user.password):
+                    # After authentication, we verify that if token is expired - in case it is expired we generate
+                    # a new token and save it.
+                    # Generate JWT tokens
+                    refresh = RefreshToken.for_user(user)
+                    access = AccessToken.for_user(user)
+                    # Set expiration time for access token (e.g., 1 hour)
+                    access_expiry = timezone.now() + timedelta(hours=6)
+                    # Update user tokens and access token expiry
+                    user.refresh_token = str(refresh)
+                    user.access_token = str(access)
+                    user.access_token_expiry = access_expiry
+                    user.save()
+                    response_status = status.HTTP_202_ACCEPTED
+                    response_dictionary = success_message("User Authenticated and new Token generated",
+                                                          data={'refresh': str(refresh), 'access': str(access),
+                                                                'access_token_expiry': user.access_token_expiry,
+                                                                })
+                    return Response(response_dictionary, status=response_status)
+
+                else:
+                    response_status = status.HTTP_401_UNAUTHORIZED
+                    response_dictionary = error_message('User not authenticated')
+                    return Response(response_dictionary, status=response_status)
+            else:
+                # This block will fire if user access token expiry is empty, so we add new tokens and expiry date and
+                # time.
+                if check_password(request_data.get("password"), user.password):
+                    # Generate JWT tokens
+                    refresh = RefreshToken.for_user(user)
+                    access = AccessToken.for_user(user)
+
+                    # Set expiration time for access token (e.g., 1 hour)
+                    access_expiry = timezone.now() + timedelta(hours=6)
+                    # Update user tokens and access token expiry
+                    user.refresh_token = str(refresh)
+                    user.access_token = str(access)
+                    user.access_token_expiry = access_expiry
+                    user.save()
+
+                    response_status = status.HTTP_202_ACCEPTED
+                    response_dictionary = success_message("User Authenticated and new Token generated",
+                                                          data={'refresh': str(refresh), 'access': str(access),
+                                                                'access_token_expiry': user.access_token_expiry,
+                                                                })
+                    return Response(response_dictionary, status=response_status)
+                else:
+                    response_status = status.HTTP_401_UNAUTHORIZED
+                    response_dictionary = error_message('User not authenticated')
+                    return Response(response_dictionary, status=response_status)
+        except ValueError as e:
+            return Response({'error': 'User does not exist'}, status=status.HTTP_404_NOT_FOUND)
