@@ -90,7 +90,7 @@ class PublicUserViewSet(viewsets.ModelViewSet):
                 # After authentication. Assuming 'token_obtain_pair' is the name of the URL pattern for
                 # obtaining a token pair
                 url = reverse('token_obtain_pair')
-                token_pair_url = "http://localhost:8000" + url
+                token_pair_url = request.build_absolute_uri(url)
                 # Your POST data
                 data = {"username": user.username, "password": request_data.get("password")}
                 response = requests.post(token_pair_url, json=data)
@@ -143,7 +143,7 @@ class PublicUserViewSet(viewsets.ModelViewSet):
             # If we have access token then we set all token and expiry field to none.
             if jwt_token:
                 response_status = status.HTTP_200_OK
-                response_dictionary = success_message("Logout successful")
+                response_dictionary = success_message("Logout successful", data={user.username})
                 return Response(response_dictionary, status=response_status)
             else:
                 response_status = status.HTTP_400_BAD_REQUEST
