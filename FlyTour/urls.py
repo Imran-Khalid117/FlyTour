@@ -23,4 +23,5 @@ urlpatterns = [
     path("", include("Catagories.urls")),
     path("", include("Places.urls")),
     path("", include("Favourites.urls")),
+    path("", include("Reviews.urls")),
 ]
