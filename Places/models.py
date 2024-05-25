@@ -8,10 +8,10 @@ class PlaceModel(models.Model):
     category_id = models.ForeignKey(CategoryModel, on_delete=models.CASCADE, related_name="place_category")
     address = models.CharField(max_length=100, blank=False)
     contact_number = models.CharField(max_length=20, blank=False)
-    latitude = models.IntegerField(max_length=15, blank=False)
-    longitude = models.IntegerField(max_length=15, blank=False)
+    latitude = models.CharField(max_length=20, blank=False)
+    longitude = models.CharField(max_length=20, blank=False)
     image_url = models.CharField(max_length=100, blank=True, null=True)
-    rating = models.FloatField(max_length=4, blank=True, null=False)
+    rating = models.FloatField(default=0.0)
 
     class Meta:
         db_table = "db_place"
