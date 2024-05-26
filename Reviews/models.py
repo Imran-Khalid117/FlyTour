@@ -6,6 +6,11 @@ from Places.models import PlaceModel
 # Create your models here.
 
 class ReviewModel(models.Model):
+    """
+    This model class is inherited from models.Model class.
+
+    This class is used to define the fields and name the database table for `Review`
+    """
     user_id = models.ForeignKey(ApplicationUser, on_delete=models.CASCADE, related_name="user_reviews")
     place_id = models.ForeignKey(PlaceModel, on_delete=models.CASCADE, related_name="place_review")
     rating = models.IntegerField(blank=False, null=False)

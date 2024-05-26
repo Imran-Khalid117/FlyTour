@@ -7,8 +7,9 @@ class ApplicationUserSerializer(serializers.ModelSerializer):
     This class in inherited from serializers.ModelSerializer class.
 
     Fields to show:
-        'id', 'email', 'username', 'password', 'created_at', 'updated_at', 'is_deleted'
-
+        'id', 'email', 'username'
+    Fields not to show:
+        'password', 'created_at', 'updated_at', 'is_deleted'
     """
 
     def __init__(self, *args, **kwargs):

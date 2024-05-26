@@ -25,7 +25,8 @@ class PublicUserViewSet(viewsets.ModelViewSet):
         in the application. Where username is mandatory field in the user database.
 
         STEP 1: In this step we are extracting the user password from request object, hashing the object, and updating
-        data object with new hashed password.
+        data object with new hashed password. Note: When we create the user record using the create command it
+        hashes the password automatically.
 
         STEP 2: we are creating user and saving it in the database.
 
@@ -36,6 +37,7 @@ class PublicUserViewSet(viewsets.ModelViewSet):
 
         return:  rest_framework.response object with status of OK of failure to requesting source for this API
         """
+        # Step 1:
         response_status = status.HTTP_400_BAD_REQUEST
         try:
             request_data = request.data
@@ -44,6 +46,7 @@ class PublicUserViewSet(viewsets.ModelViewSet):
                 response_dictionary = error_message('An error has occurred with message ')
                 return Response(response_dictionary, status=response_status)
 
+            # Step 2:
             new_user = ApplicationUser.objects.create_user(**request_data)
             serializer = ApplicationUserSerializer(instance=new_user, fields=["id", "username", "email"])
 
@@ -57,16 +60,13 @@ class PublicUserViewSet(viewsets.ModelViewSet):
     def login(self, request: Request, *args, **kwargs) -> Response:
         """
        This method implements the login functionality for user to login. We are also generating the access token,
-       refresh token and calculated access token expiry field data and saving it in database.
+       refresh token using JWT built in classes `TokenObtainPairView` and `TokenRefreshView`. We are calling
+       these views as per our need from this view function.
 
-       In case if user is just created - this method will generate the new access token,
-       refresh token and calculated access token expiry field data and saving it in database.
-
-       In case if user has access token it will check the expiry and in case expiry datatime is expired i.e. after 6hrs
-       it will again generate a new access token, refresh token and update the access token expiry field.
-
-       In case if access token is not expired based on the datatime saved it will return the same access token,
-       refresh token and will not update the expiry datetime field.
+       In case if user is just created and attempt login - this method will generate the new access token,
+       refresh token. We are not saving the access and refresh token as they can be generated when ever
+       user login. We have added the `SIMPLE_JWT` dictionary with default settings for access and refresh token,
+       that regulates the expiry date and time.
 
        param:
        request: Request (Object) this pertains the request from the POST call from the calling application.
@@ -77,25 +77,22 @@ class PublicUserViewSet(viewsets.ModelViewSet):
         # Step 1: we are extracting "username" and "password" from request data
         request_data = request.data
         # Step 2: In this try catch block we are testing following things.
-        # 1) We will check if access token is set and if it expired then generate a new token
-        # 2) We will check if access token is not expired then return same access token, refresh token and expiry date.
-        # 3) We will also verify if user exists in database.
-
         try:
-            # Step 2.3 extracting user details from DB if not then raise exception
+            # Step 2.1 extracting user details from DB if not then raise exception
             user = ApplicationUser.objects.get(username=request_data.get("username"))
 
-            # if access token is set we authenticate the user.
+            # Authenticating the user
             if check_password(request_data.get("password"), user.password):
-                # After authentication. Assuming 'token_obtain_pair' is the name of the URL pattern for
-                # obtaining a token pair
+                # After authentication. We are now calling the view to generate the access and refresh token
                 url = reverse('token_obtain_pair')
+                # Building absolute path to the view as relative path does not work with this function.
                 token_pair_url = request.build_absolute_uri(url)
-                # Your POST data
+                # Constructing the data input from the token generation view.
                 data = {"username": user.username, "password": request_data.get("password")}
+                # Sending the post request to the view.
                 response = requests.post(token_pair_url, json=data)
-
-                response.raise_for_status()  # Raise an exception for HTTP errors
+                # Raise an exception for HTTP errors
+                response.raise_for_status()
 
                 response_status = status.HTTP_202_ACCEPTED
                 response_dictionary = success_message("User Authenticated and new Token generated",
@@ -113,23 +110,22 @@ class PublicUserViewSet(viewsets.ModelViewSet):
     @permission_classes([IsAuthenticated])
     def logout(self, request: Request, *args, **kwargs) -> Response:
         """
-            In this method we have implemented the logout functionality. This method will only be accessible
-            if user is authenticated. This function receives username in request body and access token in request
-            header.
+        In this method we have implemented the logout functionality. This method will only be accessible
+        if user is authenticated. This function receives username in request body and access token in request
+        header.
 
-            We filter out the user based on the username and extract the access token from the header. Access token
-            is passed in header so that to make sure that user is authenticated user.
+        We filter out the user based on the username and extract the access token from the header. Access token
+        is passed in header so that to make sure that user is authenticated user.
 
-            Params:
-            request: HTTP Request object - you can access all fields from this variable
-            **args: These are additional parameters
-            **kwargs: These are additional - optional keyword parameters
+        Params:
+        request: HTTP Request object - you can access all fields from this variable
+        **args: These are additional parameters
+        **kwargs: These are additional - optional keyword parameters
 
-            return:  rest_framework.response object with status of OK of failure to requesting source for this API
+        return:  rest_framework.response object with status of OK of failure to requesting source for this API
         """
         request_data = request.headers
-        # request_data_body = request.data
-        # extracting the user from database with respect to username provided in request body.
+        # extracting the user from database with respect to username provided in request header.
         user = ApplicationUser.objects.get(username=request_data.get("username"))
         jwt_token = None
         # We are checking here if application has provided access token if that is so then request header
@@ -140,7 +136,7 @@ class PublicUserViewSet(viewsets.ModelViewSet):
             # Token should be in the format "Bearer <token>"
             jwt_token = auth_header.split()[1] if auth_header.startswith('Bearer') else None
         try:
-            # If we have access token then we set all token and expiry field to none.
+            # If we have access token then we log out the user.
             if jwt_token:
                 response_status = status.HTTP_200_OK
                 response_dictionary = success_message("Logout successful", data={user.username})

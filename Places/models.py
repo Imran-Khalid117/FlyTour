@@ -4,6 +4,11 @@ from Catagories.models import CategoryModel
 
 # Create your models here.
 class PlaceModel(models.Model):
+    """
+        This model class is inherited from models.Model class.
+
+        This class is used to define the fields and name the database table for `Place`
+        """
     place_name = models.CharField(max_length=100, blank=False)
     category_id = models.ForeignKey(CategoryModel, on_delete=models.CASCADE, related_name="place_category")
     address = models.CharField(max_length=100, blank=False)
